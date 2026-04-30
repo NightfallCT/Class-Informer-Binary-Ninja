@@ -7,6 +7,7 @@ Uses SidebarWidget + QTableWidget for a real, native table with:
   - Sortable columns (click header)
   - Double-click navigates to vftable address
   - Live filter by class name
+  - Save / Load buttons persist results alongside the .bndb file
 """
 
 from binaryninja import log_info, log_warn, execute_on_main_thread
@@ -31,7 +32,7 @@ try:
     from PySide6.QtWidgets import (
         QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
         QHeaderView, QLabel, QLineEdit, QAbstractItemView, QWidget,
-        QPushButton,
+        QPushButton, QMessageBox,
     )
     from PySide6.QtCore import Qt
     from PySide6.QtGui import QImage, QPainter, QColor, QFont, QBrush
@@ -76,7 +77,6 @@ def _refresh_all_widgets(bv):
         if ctx:
             sb = ctx.sidebar()
             if sb:
-                # Find our widget type and activate it
                 for wt in Sidebar.types():
                     if wt.name() == "Class Informer":
                         sb.activate(wt)
@@ -115,29 +115,47 @@ if _HAS_UI:
             layout.setContentsMargins(0, 0, 0, 0)
             layout.setSpacing(0)
 
-            # ── Filter bar ────────────────────────────────────────────────
-            filter_bar = QHBoxLayout()
-            filter_bar.setContentsMargins(6, 4, 6, 4)
+            # ── Toolbar ───────────────────────────────────────────────────
+            toolbar = QHBoxLayout()
+            toolbar.setContentsMargins(6, 4, 6, 4)
+            toolbar.setSpacing(4)
 
+            # Scan button
             self._scan_btn = QPushButton("Scan")
             self._scan_btn.setToolTip("Run Class Informer scan on this binary")
             self._scan_btn.setFixedHeight(22)
             self._scan_btn.clicked.connect(self._on_scan_clicked)
-            filter_bar.addWidget(self._scan_btn)
+            toolbar.addWidget(self._scan_btn)
 
+            # Save button
+            self._save_btn = QPushButton("Save")
+            self._save_btn.setToolTip("Save current results to a .class_informer.json file next to the database")
+            self._save_btn.setFixedHeight(22)
+            self._save_btn.setEnabled(False)   # enabled once results exist
+            self._save_btn.clicked.connect(self._on_save_clicked)
+            toolbar.addWidget(self._save_btn)
+
+            # Load button
+            self._load_btn = QPushButton("Load")
+            self._load_btn.setToolTip("Load previously saved results from the .class_informer.json file")
+            self._load_btn.setFixedHeight(22)
+            self._load_btn.clicked.connect(self._on_load_clicked)
+            toolbar.addWidget(self._load_btn)
+
+            # Count label + filter (pushed to the right)
             self._count_label = QLabel("0 vftable(s)")
             self._count_label.setStyleSheet("font-size: 11px; color: #888;")
-            filter_bar.addWidget(self._count_label)
-            filter_bar.addStretch()
+            toolbar.addWidget(self._count_label)
+            toolbar.addStretch()
 
             self._filter = QLineEdit()
             self._filter.setPlaceholderText("Filter…")
-            self._filter.setMaximumWidth(250)
+            self._filter.setMaximumWidth(220)
             self._filter.textChanged.connect(self._apply_filter)
             self._filter.setClearButtonEnabled(True)
-            filter_bar.addWidget(self._filter)
+            toolbar.addWidget(self._filter)
 
-            layout.addLayout(filter_bar)
+            layout.addLayout(toolbar)
 
             # ── Table ─────────────────────────────────────────────────────
             self._table = QTableWidget(0, len(_COLUMNS))
@@ -152,7 +170,6 @@ if _HAS_UI:
             self._table.setSortingEnabled(True)
             self._table.setShowGrid(False)
 
-            # Columns: all resizable by user, Hierarchy stretches
             hdr = self._table.horizontalHeader()
             hdr.setStretchLastSection(False)
             hdr.setSectionResizeMode(_C_ADDR,  QHeaderView.Interactive)
@@ -165,7 +182,6 @@ if _HAS_UI:
             self._table.setColumnWidth(_C_CLASS, 180)
             self._table.setColumnWidth(_C_TYPE,  60)
 
-            # Double-click → navigate to address
             self._table.cellDoubleClicked.connect(self._on_double_click)
 
             layout.addWidget(self._table)
@@ -177,9 +193,14 @@ if _HAS_UI:
 
             self.setLayout(layout)
 
-            # Load any existing results for this bv
+            # Load any existing in-memory results for this bv, or try the
+            # saved file automatically when the sidebar is first opened.
             if bv and id(bv) in _results_by_bv:
                 self.load_results(_results_by_bv[id(bv)])
+            elif bv:
+                self._try_autoload()
+
+        # ── Result loading ─────────────────────────────────────────────────
 
         def load_results(self, results: list):
             """Populate the table with scan results."""
@@ -195,7 +216,7 @@ if _HAS_UI:
 
                 addr_item  = QTableWidgetItem(f"0x{info.address:08X}")
                 meth_item  = QTableWidgetItem()
-                meth_item.setData(Qt.DisplayRole, info.method_count)  # numeric sort
+                meth_item.setData(Qt.DisplayRole, info.method_count)
                 class_item = QTableWidgetItem(info.class_name)
                 hier_item  = QTableWidgetItem(info.hierarchy_string)
                 type_item  = QTableWidgetItem(info.inheritance_label)
@@ -207,11 +228,9 @@ if _HAS_UI:
                 hier_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
                 type_item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
 
-                # Store address for navigation
                 for item in [addr_item, meth_item, class_item, hier_item, type_item]:
                     item.setData(Qt.UserRole, info.address)
 
-                # Mute secondary MI entries
                 if not info.is_primary:
                     gray = QBrush(QColor(100, 100, 100))
                     for item in [addr_item, meth_item, class_item, hier_item, type_item]:
@@ -229,17 +248,21 @@ if _HAS_UI:
             self._scan_btn.setEnabled(True)
             self._scan_btn.setText("Scan")
 
+            # Enable Save only when there is something to save
+            has_results = len(results) > 0
+            self._save_btn.setEnabled(has_results)
+
+        # ── Filter ─────────────────────────────────────────────────────────
+
         def _apply_filter(self, text: str):
             q = text.strip().lower()
             visible = 0
             for row in range(self._table.rowCount()):
                 if q:
-                    match = False
-                    for col in [_C_ADDR, _C_CLASS, _C_HIER]:
-                        item = self._table.item(row, col)
-                        if item and q in item.text().lower():
-                            match = True
-                            break
+                    match = any(
+                        (item := self._table.item(row, col)) and q in item.text().lower()
+                        for col in [_C_ADDR, _C_CLASS, _C_HIER]
+                    )
                     self._table.setRowHidden(row, not match)
                     if match:
                         visible += 1
@@ -248,10 +271,9 @@ if _HAS_UI:
                     visible += 1
 
             total = self._table.rowCount()
-            if q:
-                self._count_label.setText(f"{visible} / {total}")
-            else:
-                self._count_label.setText(f"{total} vftable(s)")
+            self._count_label.setText(f"{visible} / {total}" if q else f"{total} vftable(s)")
+
+        # ── Navigation ─────────────────────────────────────────────────────
 
         def _on_double_click(self, row, col):
             item = self._table.item(row, _C_ADDR)
@@ -268,44 +290,124 @@ if _HAS_UI:
                         vf.navigate(f"Linear:{self._bv.view_type}", addr)
                         self._status.setText(f"→ 0x{addr:08X}")
                         return
-                # Fallback
                 self._bv.file.navigate(self._bv.view, addr)
                 self._status.setText(f"→ 0x{addr:08X}")
             except Exception as e:
                 log_warn(f"[ClassInformer] Navigate: {e}")
                 self._status.setText(f"Error: {e}")
 
+        # ── Scan ───────────────────────────────────────────────────────────
+
         def _on_scan_clicked(self):
             if not self._bv:
                 self._status.setText("No binary loaded")
                 return
-            # Lazy import to avoid circular dependency
             from . import ClassInformerTask
             self._scan_btn.setEnabled(False)
             self._scan_btn.setText("Scanning…")
+            self._save_btn.setEnabled(False)
             self._status.setText("Scan running…")
             task = ClassInformerTask(self._bv)
             task.start()
+
+        # ── Save ───────────────────────────────────────────────────────────
+
+        def _on_save_clicked(self):
+            if not self._bv:
+                self._status.setText("No binary loaded")
+                return
+            if not self._all_results:
+                self._status.setText("Nothing to save — run a scan first")
+                return
+
+            try:
+                from .persistence import save_results, results_path_for
+                path = save_results(self._bv, self._all_results)
+                self._status.setText(f"Saved → {path}")
+            except Exception as e:
+                log_warn(f"[ClassInformer] Save failed: {e}")
+                self._status.setText(f"Save failed: {e}")
+                QMessageBox.warning(
+                    self, "Class Informer — Save Failed",
+                    f"Could not save results:\n\n{e}",
+                )
+
+        # ── Load ───────────────────────────────────────────────────────────
+
+        def _on_load_clicked(self):
+            """Manually load saved results (shows an error dialog on failure)."""
+            if not self._bv:
+                self._status.setText("No binary loaded")
+                return
+
+            try:
+                from .persistence import load_results, results_path_for
+                results = load_results(self._bv)
+                _store_results(self._bv, results)
+                self.load_results(results)
+                path = results_path_for(self._bv)
+                self._status.setText(f"Loaded {len(results)} vftable(s) ← {path}")
+            except FileNotFoundError as e:
+                self._status.setText("No saved results found for this binary")
+                QMessageBox.information(
+                    self, "Class Informer — Load",
+                    str(e),
+                )
+            except Exception as e:
+                log_warn(f"[ClassInformer] Load failed: {e}")
+                self._status.setText(f"Load failed: {e}")
+                QMessageBox.warning(
+                    self, "Class Informer — Load Failed",
+                    f"Could not load results:\n\n{e}",
+                )
+
+        # ── Auto-load on sidebar open ──────────────────────────────────────
+
+        def _try_autoload(self):
+            """
+            Silently attempt to load saved results when the sidebar widget is
+            first created for a binary.  No dialog shown on failure — the user
+            can always click Load manually.
+            """
+            if not self._bv:
+                return
+            try:
+                from .persistence import load_results, results_path_for
+                results = load_results(self._bv)
+                _store_results(self._bv, results)
+                self.load_results(results)
+                path = results_path_for(self._bv)
+                self._status.setText(f"Auto-loaded {len(results)} vftable(s) ← {path}")
+                log_info(f"[ClassInformer] Auto-loaded {len(results)} result(s) from {path}")
+            except FileNotFoundError:
+                # Nothing saved yet — perfectly normal, stay silent
+                pass
+            except Exception as e:
+                log_warn(f"[ClassInformer] Auto-load skipped: {e}")
+
+        # ── View change ────────────────────────────────────────────────────
 
         def notifyViewChanged(self, frame):
             """Called by Binary Ninja when the active view changes."""
             if frame:
                 try:
-                    vf = frame
-                    ctx = vf.actionContext()
+                    ctx = frame.actionContext()
                     new_bv = ctx.binaryView
                     if new_bv and new_bv != self._bv:
                         self._bv = new_bv
                         results = _results_by_bv.get(id(new_bv), [])
-                        self.load_results(results)
+                        if results:
+                            self.load_results(results)
+                        else:
+                            # Try loading from disk for the new binary
+                            self._try_autoload()
                 except Exception:
                     pass
 
-    # ── Sidebar registration ──────────────────────────────────────────────
+    # ── Sidebar registration ──────────────────────────────────────────────────
 
     class ClassInformerSidebarWidgetType(SidebarWidgetType):
         def __init__(self):
-            # Create a simple icon (small "CI" text on solid background)
             icon = QImage(56, 56, QImage.Format_ARGB32)
             icon.fill(QColor(0, 0, 0, 0))
             p = QPainter(icon)
@@ -330,5 +432,4 @@ if _HAS_UI:
         def defaultLocation(self):
             return SidebarWidgetLocation.RightBottom
 
-    # Register the sidebar widget type at plugin load time
     Sidebar.addSidebarWidgetType(ClassInformerSidebarWidgetType())
