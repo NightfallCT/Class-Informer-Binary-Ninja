@@ -15,6 +15,6 @@
         "Windows": "Clone or download this repository into your Binary Ninja user plugins directory:\n```\n%APPDATA%\\Binary Ninja\\plugins\\binja_class_informer\\\n```\nRestart Binary Ninja. The plugin will appear under **Plugins → Class Informer**."
     },
     "dependencies": {},
-    "version": "0.1.0",
+    "version": "1.0.1",
     "minimumbinaryninjaversion": 3000
 }
