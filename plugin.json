@@ -1,18 +1,20 @@
 {
+    "pluginmetadataversion": 2,
     "name": "Class Informer",
-    "author": "Port of IDA Class Informer by Sirmabus / kweatherman",
-    "description": "Scans MSVC-compiled binaries for C++ RTTI data, identifies virtual function tables, reconstructs class hierarchies, and annotates the binary. Port of the IDA Pro Class Informer plugin.",
-    "longdescription": "Class Informer scans MSVC-compiled binaries for C++ Run-Time Type Identification (RTTI) data. It locates CompleteObjectLocators (COL), TypeDescriptors, ClassHierarchyDescriptors, and virtual function tables (vftables). Found structures are annotated with names and comments, and a results pane lists all discovered classes with their inheritance hierarchy.",
+    "author": "NightfallCT",
+    "api": ["python3"],
+    "description": "Reconstructs C++ class hierarchies from MSVC RTTI",
+    "longdescription": "# Class Informer\n\nA port of the [IDA Pro Class Informer plugin](https://github.com/kweatherman/IDA_ClassInformer_PlugIn) by Sirmabus / kweatherman, rewritten for Binary Ninja.\n\nScans MSVC-compiled binaries for C++ Run-Time Type Identification (RTTI) data. It locates `CompleteObjectLocators` (COL), `TypeDescriptors`, `ClassHierarchyDescriptors`, and virtual function tables (vftables). Found structures are annotated with names and comments, and a results pane lists all discovered classes with their full inheritance hierarchy.\n\n## Features\n\n- Two-pass vftable scanner (COL-anchored + segment sweep)\n- Reconstructs full class hierarchy strings (e.g. `CEdit:CWnd:CCmdTarget:CObject`)\n- Annotates vftables, method slots, and RTTI structures with symbols and comments\n- Results pane with sortable table of all discovered classes\n- Save / load scan results to a sidecar JSON file\n- Supports both 32-bit and 64-bit MSVC binaries\n\n## Usage\n\nOpen an MSVC-compiled PE binary in Binary Ninja, then run **Plugins → Class Informer → Run Scan** from the menu or command palette.",
     "license": {
         "name": "MIT",
-        "text": "See LICENSE file"
+        "text": "Copyright (c) 2026 NightfallCT\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the \"Software\"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
     },
-    "type": ["core", "ui"],
-    "api": ["python3"],
+    "type": ["helper", "ui"],
+    "platforms": ["Windows"],
     "installinstructions": {
-        "default": "Copy the binja_class_informer folder to your Binary Ninja user plugins directory."
+        "Windows": "Clone or download this repository into your Binary Ninja user plugins directory:\n```\n%APPDATA%\\Binary Ninja\\plugins\\binja_class_informer\\\n```\nRestart Binary Ninja. The plugin will appear under **Plugins → Class Informer**."
     },
+    "dependencies": {},
     "version": "0.1.0",
-    "minimumbinaryninjaversion": 3000,
-    "platforms": ["Darwin", "Linux", "Windows"]
+    "minimumbinaryninjaversion": 3000
 }
