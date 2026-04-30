@@ -51,7 +51,7 @@ Once installed, access the tool via the **Plugin Command** menu or the command p
    https://www.youtube.com/watch?v=VdoSjZBfS5U
 
 ## Image
-![screenshot](https://raw.githubusercontent.com/NightfallCT/Class-Informer-Binary-Ninja/refs/heads/main/Screenshot.png?token=GHSAT0AAAAAADXEKJK5BYTIAXOKQT4VGNCE2PSWLUQ)
+![screenshot](https://raw.githubusercontent.com/NightfallCT/Class-Informer-Binary-Ninja/refs/heads/main/Screenshot.png)
 
 ---
 
