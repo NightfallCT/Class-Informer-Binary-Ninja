@@ -142,6 +142,14 @@ if _HAS_UI:
             self._load_btn.clicked.connect(self._on_load_clicked)
             toolbar.addWidget(self._load_btn)
 
+            # Clear button
+            self._clear_btn = QPushButton("Clear")
+            self._clear_btn.setToolTip("Clear all results from the table")
+            self._clear_btn.setFixedHeight(22)
+            self._clear_btn.setEnabled(False)   # enabled once results exist
+            self._clear_btn.clicked.connect(self._on_clear_clicked)
+            toolbar.addWidget(self._clear_btn)
+
             # Count label + filter (pushed to the right)
             self._count_label = QLabel("0 vftable(s)")
             self._count_label.setStyleSheet("font-size: 11px; color: #888;")
@@ -251,6 +259,7 @@ if _HAS_UI:
             # Enable Save only when there is something to save
             has_results = len(results) > 0
             self._save_btn.setEnabled(has_results)
+            self._clear_btn.setEnabled(has_results)
 
         # ── Filter ─────────────────────────────────────────────────────────
 
@@ -360,6 +369,22 @@ if _HAS_UI:
                     self, "Class Informer — Load Failed",
                     f"Could not load results:\n\n{e}",
                 )
+
+        # ── Clear ──────────────────────────────────────────────────────────
+
+        def _on_clear_clicked(self):
+            """Clear all results from the table and reset in-memory state."""
+            self._all_results = []
+            if self._bv:
+                _results_by_bv.pop(id(self._bv), None)
+            self._filter.clear()
+            self._table.setSortingEnabled(False)
+            self._table.setRowCount(0)
+            self._table.setSortingEnabled(True)
+            self._count_label.setText("0 vftable(s)")
+            self._status.setText("Results cleared")
+            self._save_btn.setEnabled(False)
+            self._clear_btn.setEnabled(False)
 
         # ── Auto-load on sidebar open ──────────────────────────────────────
 
