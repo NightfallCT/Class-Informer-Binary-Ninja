@@ -1,0 +1,18 @@
+{
+    "name": "Class Informer",
+    "author": "Port of IDA Class Informer by Sirmabus / kweatherman",
+    "description": "Scans MSVC-compiled binaries for C++ RTTI data, identifies virtual function tables, reconstructs class hierarchies, and annotates the binary. Port of the IDA Pro Class Informer plugin.",
+    "longdescription": "Class Informer scans MSVC-compiled binaries for C++ Run-Time Type Identification (RTTI) data. It locates CompleteObjectLocators (COL), TypeDescriptors, ClassHierarchyDescriptors, and virtual function tables (vftables). Found structures are annotated with names and comments, and a results pane lists all discovered classes with their inheritance hierarchy.",
+    "license": {
+        "name": "MIT",
+        "text": "See LICENSE file"
+    },
+    "type": ["core", "ui"],
+    "api": ["python3"],
+    "installinstructions": {
+        "default": "Copy the binja_class_informer folder to your Binary Ninja user plugins directory."
+    },
+    "version": "0.1.0",
+    "minimumbinaryninjaversion": 3000,
+    "platforms": ["Darwin", "Linux", "Windows"]
+}
